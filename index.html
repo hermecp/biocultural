@@ -3,7 +3,26 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Geoportal Corredor Biocultural — Inicio</title>
+<title>Cartografía de Saberes Comunitarios — Corredor Biocultural</title>
+
+<!-- Tailwind (CDN para el modal/card y tipografía grande) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bosque: { 50:'#ecfdf5', 100:'#d1fae5', 300:'#86efac', 500:'#16a34a', 600:'#0e7a3a', 800:'#065f46' },
+          marco:{ 300:'rgba(147,243,192,.25)' }
+        },
+        boxShadow: {
+          fino: '0 8px 24px rgba(6,95,70,.18)',
+          verde: '0 16px 40px rgba(6,95,70,.35)'
+        }
+      }
+    }
+  }
+</script>
 
 <!-- Leaflet + utilidades -->
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
@@ -19,122 +38,75 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
 <style>
-  /* Paleta unificada en VERDE (inspirada en el resto del portal) */
   :root{
-    --primary:#16a34a;           /* verde base */
-    --primary-2:#0e7a3a;         /* verde profundo */
-    --accent:#93f3c0;            /* acento claro */
-    --bg:#0b0f0c;                /* fondo general */
-    --surface:#0f1512;           /* tarjetas/oscuros */
-    --panel:rgba(15,24,19,.95);  /* panel flotante */
-    --line:rgba(147,243,192,.25);/* líneas verdes suaves */
-
-    --text:#e6f7ee;              /* texto claro */
-    --muted:#a7b7ad;             /* texto secundario */
-
-    --good:#22c55e; --mid:#f59e0b; --bad:#ef4444;
+    --primary:#16a34a; --primary-2:#0e7a3a; --accent:#93f3c0;
+    --bg:#0b0f0c; --panel:rgba(15,24,19,.95); --line:rgba(147,243,192,.25);
+    --text:#e6f7ee; --muted:#a7b7ad;
   }
-
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;
-    background:radial-gradient(1200px 600px at 70% -10%, #0f1a14, var(--bg));
-    color:var(--text)
+    background:radial-gradient(1200px 600px at 70% -10%, #0f1a14, var(--bg)); color:var(--text)
   }
-
-  /* Layout general */
-  #app{
-    min-height:100vh; display:grid;
-    grid-template-areas:"header" "main" "footer";
-    grid-template-rows:64px 1fr 48px;
-  }
-
-  /* Header en verde */
+  #app{min-height:100vh; display:grid; grid-template-areas:"header" "main" "footer"; grid-template-rows:64px 1fr 48px}
   header{
-    grid-area:header;
-    background:linear-gradient(135deg,var(--primary),var(--primary-2));
-    color:#042d19; display:flex; align-items:center; justify-content:space-between;
-    gap:12px; padding:0 12px; border-bottom:1px solid var(--line)
+    grid-area:header; background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    color:#042d19; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 12px; border-bottom:1px solid var(--line)
   }
   header .brand{display:flex;align-items:center;gap:10px}
   header .brand img{height:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
   header .brand .title strong{display:block;font-weight:800;letter-spacing:.2px}
-  header .brand .title small{opacity:.9}
   header .nav{display:flex;gap:8px;flex-wrap:wrap}
   header .nav a{
     display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:12px;
-    background:rgba(255,255,255,.18);color:#042d19;text-decoration:none;border:1px solid rgba(255,255,255,.35);
-    font-size:13px; transition:.2s
+    background:rgba(255,255,255,.18);color:#042d19;text-decoration:none;border:1px solid rgba(255,255,255,.35); font-size:13px; transition:.2s
   }
-  header .nav a.active, header .nav a:hover{
-    background:#fff; color:#065f46; border-color:#fff
-  }
-
+  header .nav a.active, header .nav a:hover{ background:#fff; color:#065f46; border-color:#fff }
   .kpis{display:flex;gap:8px}
-  .kpi{
-    background:rgba(255,255,255,.16);
-    border:1px solid rgba(255,255,255,.35);
-    border-radius:10px;padding:6px 10px;font-size:12px;text-align:center;color:#043722
-  }
+  .kpi{ background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); border-radius:10px;padding:6px 10px;font-size:12px;text-align:center;color:#043722 }
   .kpi .v{font-weight:800;font-size:16px}
 
   main{grid-area:main;position:relative}
   #map{position:absolute;inset:0}
 
-  /* Geocoder centrado con borde verde */
+  /* Geocoder centrado */
   .geocoder-wrap{
     position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:540;
-    background:rgba(255,255,255,.92); border:1px solid var(--line);
-    border-radius:14px;padding:6px 8px; box-shadow:0 10px 24px rgba(5,94,40,.25)
+    background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:14px;padding:6px 8px; box-shadow:0 10px 24px rgba(5,94,40,.25)
   }
   .leaflet-control-geocoder{background:transparent;border:none;box-shadow:none}
   .leaflet-control-geocoder-form input{
     width:320px;max-width:60vw;background:#ffffff;color:#0b1a12;
     border:1px solid #d6efe2;border-radius:10px;padding:10px 12px; outline:none;
   }
-  .leaflet-control-geocoder-form input:focus{
-    box-shadow:0 0 0 3px rgba(34,197,94,.25);
-    border-color:#9ee9c2
-  }
+  .leaflet-control-geocoder-form input:focus{ box-shadow:0 0 0 3px rgba(34,197,94,.25); border-color:#9ee9c2 }
 
-  /* Panel de capas (verde, no translúcido negro) */
+  /* Panel de capas */
   .panel{
-    position:absolute;right:12px;top:12px;z-index:520;
-    background:var(--panel); border:1px solid var(--line);
-    border-radius:16px; min-width:300px; max-width:min(380px,92vw);
-    padding:12px 12px 14px 12px; max-height:70vh; overflow:auto;
+    position:absolute;right:12px;top:12px;z-index:520; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; min-width:300px; max-width:min(380px,92vw); padding:12px 12px 14px 12px; max-height:70vh; overflow:auto;
     box-shadow:0 18px 48px rgba(5,94,40,.35)
   }
   .panel h4{margin:0 0 8px 0;font-size:14px;color:#bbffe0}
   .block{margin:10px 0}
   .block b{display:block;margin-bottom:6px;font-size:12px;color:#d1f5e4}
   .item{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0}
   .sep{height:1px;background:var(--line);margin:10px 0}
 
-  /* Botón con gradiente verde claro */
   .btn{
     width:100%;height:38px;margin-top:6px;border-radius:12px;border:1px solid #b3f0d0;
     background:linear-gradient(180deg,#ffffff,#ecfdf5); color:#064e3b; cursor:pointer;
     box-shadow:0 6px 14px rgba(5,94,40,.2); transition:.15s
   }
   .btn:hover{transform:translateY(-1px)}
-  .btn:active{transform:translateY(0)}
-  .btn:focus{outline:none; box-shadow:0 0 0 3px rgba(34,197,94,.3)}
 
   /* Leyenda */
   .legend{
-    position:absolute;left:12px;bottom:12px;z-index:500;
-    background:rgba(255,255,255,.92); color:#0d2f20;
-    border:1px solid var(--line); border-radius:12px;
-    padding:10px 12px;font-size:12px;min-width:220px;
-    box-shadow:0 12px 28px rgba(5,94,40,.25)
+    position:absolute;left:12px;bottom:12px;z-index:500;background:rgba(255,255,255,.92); color:#0d2f20;
+    border:1px solid var(--line); border-radius:12px; padding:10px 12px;font-size:12px;min-width:220px; box-shadow:0 12px 28px rgba(5,94,40,.25)
   }
-  .legend .sw{
-    display:inline-block;width:14px;height:14px;margin-right:6px;
-    border:1px solid #0f3d26; vertical-align:middle; border-radius:3px
-  }
+  .legend .sw{ display:inline-block;width:14px;height:14px;margin-right:6px; border:1px solid #0f3d26; vertical-align:middle; border-radius:3px }
 
   footer{
     grid-area:footer; background:#0c1411; border-top:1px solid var(--line);
@@ -148,7 +120,6 @@
     .leaflet-control-geocoder-form input{width:220px}
   }
 </style>
-
 </head>
 <body>
 <div id="app">
@@ -156,7 +127,7 @@
     <div class="brand">
       <img src="IPN-Logo.png" alt="IPN" />
       <div class="title">
-        <strong>Corredor Biocultural de Oaxaca</strong>
+        <strong class="text-lg md:text-xl">Cartografía de Saberes Comunitarios</strong>
         <small>IPN · CVDR Oaxaca</small>
       </div>
     </div>
@@ -178,7 +149,13 @@
   <main>
     <div id="map"></div>
 
-    <!-- Geocoder -->
+    <!-- Botón info (abre modal Tailwind) -->
+    <button id="btn-info"
+      class="absolute left-3 top-3 z-[560] h-11 px-4 rounded-xl bg-white text-emerald-900 font-extrabold border border-emerald-100 shadow-md hover:-translate-y-0.5 transition flex items-center gap-2">
+      <i class="fa-solid fa-circle-info"></i> ¿Qué es esto?
+    </button>
+
+    <!-- Geocoder (único buscador, centrado) -->
     <div class="geocoder-wrap" id="gc-wrap"></div>
 
     <!-- Panel de capas -->
@@ -235,6 +212,98 @@
     </aside>
 
     <div class="legend" id="legend"></div>
+<!-- MODAL / CARD — Cartografía de Saberes Comunitarios (versión panorámica y sintética) -->
+<div id="modal"
+  class="fixed inset-0 z-[580] bg-emerald-900/30 backdrop-blur-sm flex items-center justify-center p-6">
+  <div class="w-full max-w-full mx-10 rounded-3xl bg-gradient-to-br from-emerald-50 via-amber-50 to-lime-50 text-emerald-950 shadow-xl border border-emerald-100">
+    <div class="px-12 pt-8 pb-6">
+      <div class="flex items-start justify-between">
+        <h2 class="text-4xl font-extrabold tracking-tight text-emerald-900">
+          Cartografía de Saberes Comunitarios
+        </h2>
+        <button id="modal-close"
+          class="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-800 font-bold hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400">✕</button>
+      </div>
+
+      <p class="mt-4 text-lg leading-relaxed max-w-6xl">
+        Esta cartografía reúne <b>saberes, oficios, lugares, fiestas y memorias</b> que dan forma al territorio.  
+        Reconoce cómo las comunidades <b>habitan, cuidan y transmiten</b> su conocimiento en diálogo con la naturaleza.
+      </p>
+
+      <!-- Contenidos -->
+      <div class="mt-8 grid grid-cols-5 gap-5 text-[15px]">
+        <div class="rounded-xl border border-emerald-200 bg-white/90 p-4 text-center shadow-sm">
+          <div class="font-semibold text-emerald-800 mb-1"><i class="fa-solid fa-leaf text-lime-700"></i></div>
+          <p><b>Saberes y oficios</b><br>Prácticas agrícolas, medicina tradicional, alfarería y arte popular.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-white/90 p-4 text-center shadow-sm">
+          <div class="font-semibold text-emerald-800 mb-1"><i class="fa-solid fa-mountain-sun text-amber-700"></i></div>
+          <p><b>Lugares significativos</b><br>Manantiales, cerros, templos y senderos que sostienen la vida.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-white/90 p-4 text-center shadow-sm">
+          <div class="font-semibold text-emerald-800 mb-1"><i class="fa-solid fa-house-chimney text-emerald-700"></i></div>
+          <p><b>Arquitectura vernácula</b><br>Casas de adobe, cal y palma: herencia y adaptación al entorno.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-white/90 p-4 text-center shadow-sm">
+          <div class="font-semibold text-emerald-800 mb-1"><i class="fa-solid fa-route text-emerald-700"></i></div>
+          <p><b>Rutas bioculturales</b><br>Camino, trueque, festividades y peregrinaciones que unen comunidades.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-white/90 p-4 text-center shadow-sm">
+          <div class="font-semibold text-emerald-800 mb-1"><i class="fa-solid fa-people-group text-amber-700"></i></div>
+          <p><b>Custodios del territorio</b><br>Colectivos que conservan y transmiten prácticas de cuidado.</p>
+        </div>
+      </div>
+
+      <!-- Beneficios -->
+      <div class="mt-10 grid grid-cols-5 gap-5 text-[14px]">
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-lime-100 p-3 text-center">
+          <i class="fa-solid fa-seedling text-lime-700 text-xl"></i>
+          <p><b>Sostenibilidad</b><br>Conservación de biodiversidad y uso responsable del entorno.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-amber-50 to-emerald-50 p-3 text-center">
+          <i class="fa-solid fa-masks-theater text-amber-700 text-xl"></i>
+          <p><b>Identidad cultural</b><br>Preservación de tradiciones, lenguas y expresiones locales.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-lime-50 to-amber-50 p-3 text-center">
+          <i class="fa-solid fa-book-open text-emerald-700 text-xl"></i>
+          <p><b>Conciencia ambiental</b><br>Educación y sensibilización intergeneracional.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-amber-50 to-lime-100 p-3 text-center">
+          <i class="fa-solid fa-hand-holding-heart text-lime-700 text-xl"></i>
+          <p><b>Legado futuro</b><br>Uso sostenible de recursos para próximas generaciones.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-lime-100 p-3 text-center">
+          <i class="fa-solid fa-people-carry-box text-amber-700 text-xl"></i>
+          <p><b>Desarrollo local</b><br>Economía solidaria, oficios y turismo responsable.</p>
+        </div>
+      </div>
+
+      <!-- Principios -->
+      <div class="mt-10 grid grid-cols-3 gap-6 text-[14px] text-center">
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-white p-4">
+          <i class="fa-solid fa-handshake-angle text-emerald-700 text-xl"></i>
+          <p><b>Consentimiento</b><br>Libre, previo e informado.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-white p-4">
+          <i class="fa-solid fa-scale-balanced text-emerald-700 text-xl"></i>
+          <p><b>Gobernanza</b><br>Decisiones comunales y respeto a usos y costumbres.</p>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-white p-4">
+          <i class="fa-solid fa-user-shield text-emerald-700 text-xl"></i>
+          <p><b>Resguardo</b><br>Protección y reconocimiento del conocimiento local.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-12 pb-8">
+      <button id="modal-ok"
+        class="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-lime-600 text-white font-extrabold text-lg shadow-md hover:from-emerald-700 hover:to-lime-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition">
+        Entendido
+      </button>
+    </div>
+  </div>
+</div>
+
   </main>
 
   <footer>
@@ -274,7 +343,7 @@ $('base-sat').onchange=e=>e.target.checked&&setBase('sat');
 $('base-topo').onchange=e=>e.target.checked&&setBase('topo');
 $('sat-opacity').oninput=e=>baseSat.setOpacity(parseFloat(e.target.value));
 
-/* Geocoder */
+/* Geocoder (único, centrado) */
 const gc=L.Control.geocoder({defaultMarkGeocode:false, placeholder:'San Pablo Huitzo, Oaxaca, 68220, México'});
 const gcCtrl=gc.addTo(map);
 $('gc-wrap').appendChild(gcCtrl.getContainer());
@@ -302,11 +371,11 @@ const places=[
 ];
 const fcPoints={type:'FeatureCollection',features:places.map(p=>({type:'Feature',geometry:{type:'Point',coordinates:[p.lng,p.lat]},properties:{name:p.name}}))};
 
-function pinHTML(){
+function pinHTML(c='#16a34a'){
   return `<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 3px 8px rgba(0,0,0,.35))">
     <svg viewBox="0 0 28 38" width="28" height="38" aria-hidden="true">
       <path d="M14 2c-6.1 0-11 4.64-11 10.36 0 7.24 9.5 18.56 10.08 19.28a1.2 1.2 0 0 0 1.84 0C15.5 30.92 25 19.6 25 12.36 25 6.64 20.1 2 14 2z" fill="#fff"/>
-      <path d="M14 3.4c-5.35 0-9.65 4.07-9.65 9.1 0 6.38 8.35 16.35 8.86 16.98.33.4.95.4 1.28 0 .51-.63 8.86-10.6 8.86-16.98 0-5.03-4.3-9.1-9.65-9.1z" fill="#00D1A0" stroke="#0a6b55" stroke-width="1"/>
+      <path d="M14 3.4c-5.35 0-9.65 4.07-9.65 9.1 0 6.38 8.35 16.35 8.86 16.98.33.4.95.4 1.28 0 .51-.63 8.86-10.6 8.86-16.98 0-5.03-4.3-9.1-9.65-9.1z" fill="${c}" stroke="#0a6b55" stroke-width="1"/>
       <circle cx="14" cy="12.5" r="3.2" fill="rgba(255,255,255,.95)"/>
     </svg>
   </div>`;
@@ -377,7 +446,7 @@ function popupPOI(p, ll){
   const coords=`${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)}`;
   const fuente=p?.source_citation?`<div style="margin-top:6px"><small>Fuente: <a href="${p.source_citation}" target="_blank" rel="noopener">enlace</a></small></div>`:'';
   return `<div style="min-width:220px;max-width:280px">
-    <strong>${p?.name||'POI'}</strong>
+    <strong style="font-size:16px">${p?.name||'POI'}</strong>
     <div style="opacity:.9">${p?.category||''}</div>
     ${p?.Lugar?`<div><small>${p.Lugar}</small></div>`:''}
     <div style="margin-top:6px">${p?.description||''}</div>
@@ -508,7 +577,7 @@ function renderLegend(){
     }
   });
   rows.push(`<div style="margin-top:8px"><b>POIs Huitzo</b><div style="margin-top:4px">${poisRows.join('') || '<div style="opacity:.7">Sin categorías visibles</div>'}</div></div>`);
-  Lg.innerHTML = `<strong>Leyenda</strong><div style="margin-top:6px">${rows.join('')}</div>`;
+  Lg.innerHTML = `<strong style="font-size:16px">Leyenda</strong><div style="margin-top:6px">${rows.join('')}</div>`;
 }
 renderLegend();
 
@@ -538,6 +607,13 @@ document.getElementById('fires').addEventListener('change',e=>{
   e.target.checked?lyrFires.addTo(map):map.removeLayer(lyrFires);
   renderLegend();
 });
+
+/* ========= Modal (Tailwind) ========= */
+const modal = $('modal');
+$('btn-info').onclick = ()=> modal.classList.remove('hidden');
+$('modal-close').onclick = ()=> modal.classList.add('hidden');
+$('modal-ok').onclick = ()=> modal.classList.add('hidden');
+modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.classList.add('hidden'); });
 </script>
 </body>
 </html>
