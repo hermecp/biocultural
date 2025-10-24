@@ -2,593 +2,669 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Corredor Biocultural — Modelos y Factibilidad</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulación — Factibilidad Ecoturismo (demo optimista + satélite)</title>
 
-<!-- Leaflet + utilidades -->
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config={theme:{extend:{
+    colors:{brand:'#16a34a', line:'#d9e7df'},
+    boxShadow:{soft:'0 10px 24px rgba(0,0,0,.10)', deep:'0 28px 72px rgba(0,0,0,.24)'},
+    transitionProperty:{'opacity-transform':'opacity, transform'}
+  }}}
+</script>
+
+<!-- Leaflet + Turf -->
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-<script src="https://unpkg.com/leaflet-hash"></script>
-<link href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" rel="stylesheet" />
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-<!-- Iconos / tipografía -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<!-- MathJax (opcional: ver cómo se calcula) -->
+<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 
 <style>
-:root{
-  --primary:#15803d; --primary2:#166534;
-  --bg:#ffffff; --surface:#ffffff; --line:#d9e7df; --ink:#0b2e1e; --muted:#4b675b;
-  --good:#16a34a; --mid:#ca8a04; --bad:#dc2626; --blue:#2563eb;
-  --chip:#f6fbf8; --chipB:#bfead1;
-}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:linear-gradient(#fff,#f6faf7)}
+  :root{ --b:#dcefe3; }
+  html,body,#app{height:100%} #map{position:absolute;inset:0}
+  .bar>span{display:block;height:8px;background:linear-gradient(90deg,#f87171,#facc15,#22c55e);transition:width .35s ease}
+  .chip{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--b);border-radius:999px;padding:.38rem .7rem;font-size:.8rem;background:#fff}
+  .chip[data-on="1"]{background:#ecfdf5;border-color:#b3f0d0;color:#064e3b;box-shadow:0 6px 16px rgba(5,94,40,.10)}
+  .lvl{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--b);border-radius:.7rem;padding:.32rem .58rem;font-size:.75rem;min-width:3.2rem;background:rgba(255,255,255,.9)}
+  .lvl[data-active="1"]{background:#ecfdf5;border-color:#b3f0d0;color:#064e3b;font-weight:700;box-shadow:0 6px 16px rgba(5,94,40,.10)}
+  .badge{display:inline-flex;align-items:center;gap:.5rem;padding:.35rem .6rem;border:1px solid #b3f0d0;background:#ecfdf5;border-radius:999px;color:#064e3b}
+  /* NAV (colores solicitados) */
+  .nav{
+    background:#ffffff;border-bottom:1px solid var(--b);
+    display:flex;align-items:center;gap:8px;padding:6px 10px;overflow:auto; -webkit-overflow-scrolling:touch;
+  }
+  .nav a{
+    display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;text-decoration:none;
+    color:#0f3d26;font-weight:600;border:1px solid transparent;white-space:nowrap;
+  }
+  .nav a:hover{background:#f3faf6;border-color:#dcefe3}
+  .nav a.active{
+    background:linear-gradient(180deg,#ecfdf5,#d1fae5); color:#064e3b; border-color:#b3f0d0; box-shadow:0 6px 16px rgba(5,94,40,.12);
+  }
 
-header{background:linear-gradient(135deg,#e7f7ee,#c9f0da);border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;justify-content:space-between;padding:12px 14px}
-header .brand{display:flex;align-items:center;gap:10px}
-header .badge{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--chipB);border-radius:999px;background:#ecfdf5;color:#064e3b;font-size:12px}
+  /* Paneles: HUD translúcido sobre satélite */
+  .panel-glass{
+    background:linear-gradient(180deg,rgba(6,78,59,.82),rgba(6,78,59,.76));
+    color:#eafff4;
+    border:1px solid rgba(163,230,196,.35);
+    backdrop-filter:saturate(1.1) blur(8px);
+  }
+  .panel-glass .text-muted{color:#d1fae5cf}
 
-.nav{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#fff;border-top:1px solid var(--line)}
-.nav a{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#063a29;text-decoration:none;font-size:13px}
-.nav a.active{background:#d1fae5;border-color:#9eecc5;font-weight:700}
+  /* Etiquetas de municipios sin caja blanca: texto con halo */
+  .leaflet-tooltip.place-label{
+    background:transparent;border:none;color:#f0fdf4;font-weight:800;letter-spacing:.2px;padding:0;
+    text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.6),0 0 14px rgba(0,0,0,.45);
+    pointer-events:none;
+  }
+  .hide-place-labels .leaflet-tooltip.place-label{ display:none; }
 
-main{position:relative;min-height:calc(100vh - 128px)}
-#map{position:absolute;inset:0}
+  /* Animación de entrada para las celdas */
+  .hex-pane path, .hex-pane polygon { animation: fadeInHex .45s ease both; }
+  @keyframes fadeInHex{ from{opacity:0; transform:scale(.98)} to{opacity:.55; transform:scale(1)} }
 
-.panel{
-  position:absolute;right:14px;top:14px;z-index:520;background:var(--surface);border:1px solid var(--line);
-  border-radius:16px;min-width:340px;max-width:min(500px,92vw);padding:14px;box-shadow:0 16px 28px rgba(0,0,0,.08)
-}
-.panel h4{margin:0 0 8px 0;font-size:15px;color:#065f46}
-.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0}
-.row select,.row input[type="range"]{flex:1}
-select,.btn,.chip{border-radius:12px;border:1px solid var(--line);background:#fff;color:#063a29}
-select{padding:8px}
-.btn{width:100%;height:40px;box-shadow:0 6px 14px rgba(0,0,0,.06);cursor:pointer}
-.small{font-size:12px;color:#355144}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{padding:7px 10px;font-size:12px;background:var(--chip);border-color:var(--chipB);cursor:pointer}
-.chip.active{background:#e7fbee;border-color:#9eecc5;font-weight:700}
-.tool{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:10px;background:#f8fafc;border:1px solid #e5e7eb;font-size:12px;cursor:pointer}
 
-.legend{
-  position:absolute;left:14px;bottom:70px;z-index:500;background:#fff;border:1px solid var(--line);
-  border-radius:12px;padding:10px 12px;font-size:12px;min-width:240px;box-shadow:0 12px 24px rgba(0,0,0,.06)
-}
-.legend .sw{display:inline-block;width:14px;height:14px;border:1px solid #0f3d26;border-radius:3px;margin-right:6px;vertical-align:middle}
 
-.desc{
-  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
-  z-index:510;background:#ffffff;border:1px solid var(--line);border-radius:12px;
-  box-shadow:0 10px 20px rgba(0,0,0,.08);padding:10px 12px;max-width:min(800px,92vw);font-size:13px
-}
-.desc b{color:#065f46}
+  <style>
+  /* Panel vidrio oscuro con mejor contraste */
+  .panel-glass-dark{
+    background:linear-gradient(180deg,rgba(3, 59, 46,.92),rgba(3, 59, 46,.86));
+    color:#eafff4;
+    border:1px solid rgba(163,230,196,.38);
+    backdrop-filter:saturate(1.05) blur(8px);
+  }
 
-.footerbar{
-  position:absolute;left:14px;right:14px;bottom:14px;z-index:520;display:flex;gap:8px;align-items:center;
-  justify-content:space-between;pointer-events:none
-}
-.footerbar .status{pointer-events:auto;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px}
-.footerbar .tools{pointer-events:auto;display:flex;gap:6px}
+  /* Tamaños + colores compactos */
+  .chip-sm{
+    display:inline-flex;align-items:center;gap:.35rem;
+    border:1px solid rgba(163,230,196,.45);
+    border-radius:999px;
+    padding:.25rem .55rem;            /* más chico */
+    font-size:.72rem;                  /* letras más chicas */
+    line-height:1;
+    background:#ffffff;                /* alto contraste en panel oscuro */
+    color:#064e3b;
+  }
+  .chip-sm[data-on="1"]{
+    background:#bbf7d0;                /* verde claro */
+    border-color:#86efac;
+    color:#064e3b;
+    box-shadow:0 4px 10px rgba(5,94,40,.18)
+  }
 
-.pill{display:inline-flex;gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#f7fdf9;font-size:12px}
-.ok{background:#ecfdf5;border-color:#b3e9cf;color:#065f46}
-.warn{background:#fff7df;border-color:#f5e6ab;color:#7a5700}
-.bad{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+  .lvl-sm{
+    display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid rgba(163,230,196,.45);
+    border-radius:.6rem;
+    padding:.22rem .46rem;             /* más chico */
+    min-width:2.6rem;                  /* antes 3.2rem */
+    font-size:.7rem;                   /* más chico */
+    line-height:1;
+    background:rgba(255,255,255,.9);
+    color:#065f46;
+  }
+  .lvl-sm[data-active="1"]{
+    background:#bbf7d0;
+    border-color:#86efac;
+    color:#064e3b;
+    font-weight:800;
+    box-shadow:0 4px 12px rgba(5,94,40,.18)
+  }
 
-.bar{height:8px;border-radius:6px;background:#eef6f1;border:1px solid #dcebe2;overflow:hidden}
-#bar-score>span{display:block;height:8px;background:linear-gradient(90deg,var(--bad),var(--mid),var(--good))}
-hr.sep{border:none;border-top:1px solid var(--line);margin:8px 0}
+  .btn-ghost{
+    border:1px solid rgba(163,230,196,.45);
+    background:rgba(255,255,255,.08);
+    color:#ecfdf5;
+  }
+  .btn-ghost:hover{ background:rgba(255,255,255,.16); }
 
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:900}
-.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:901}
-.modal.open,.modal-backdrop.open{display:flex}
-.modal .card{width:min(760px,92vw);max-height:82vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.18)}
-.modal header{position:sticky;top:0;background:#f0faf4;padding:12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;justify-content:space-between;color:#065f46}
-.modal .content{padding:14px}
+  .section-dark{
+    border:1px solid rgba(163,230,196,.38);
+    background:rgba(2,44,34,.22);
+  }
 
-@media (max-width:900px){
-  .panel{max-height:56vh;overflow:auto}
-  .legend{bottom:118px}
-}
+  /* Etiquetas pequeñas */
+  .label-xs{ font-size:.72rem; color:#A7F3D0; }
+</style>
+
 </style>
 </head>
-<body>
-<header>
-  <div class="wrap">
-    <div class="brand">
-      <!-- Reemplaza por tu logo si deseas -->
-      <!-- <img src="IPN-Logo.png" alt="IPN" style="height:38px;border-radius:8px;border:1px solid #dfeee6"> -->
-      <div>
-        <strong>Corredor Biocultural — Modelos y Factibilidad</strong><br>
-        <small class="small">Interfaz explicable · lista para jugar y simular</small>
-      </div>
-    </div>
-    <span class="badge"><i class="fa-solid fa-flask"></i> Datos simulados</span>
-  </div>
-  <nav class="nav" aria-label="Navegación principal">
-    <a href="index.html" class="active" title="Inicio"><i class="fa-solid fa-house"></i> Inicio</a>
-    <a href="pois.html" title="POIs & Patrimonio"><i class="fa-solid fa-landmark"></i> POIs &amp; Patrimonio</a>
-    <a href="modelos.html" title="Modelos de idoneidad"><i class="fa-solid fa-diagram-project"></i> Modelos de idoneidad</a>
-    <a href="factibilidad.html" title="Factibilidad"><i class="fa-solid fa-seedling"></i> Factibilidad</a>
-    <a href="participacion.html" title="Participación"><i class="fa-solid fa-users"></i> Participación</a>
-    <a href="datos.html" title="Datos"><i class="fa-solid fa-database"></i> Datos</a>
-  </nav>
-</header>
+<body class="font-sans text-gray-800">
 
-<main>
-  <div id="map" role="region" aria-label="Mapa base"></div>
+<!-- NAV -->
+  <nav class="nav">
+      <a href="index.html" ><i class="fa-solid fa-house"></i> Inicio</a>
+      <a href="pois.html"><i class="fa-solid fa-landmark"></i> POIs & Patrimonio</a>
+      <a href="modelos.html" class="active"><i class="fa-solid fa-diagram-project"></i> Modelos de idoneidad</a>
+      <a href="#"><i class="fa-solid fa-users"></i> Participación</a>
+      <a href="#"><i class="fa-solid fa-database"></i> Datos</a>
+    </nav>
 
-  <div id="desc" class="desc" aria-live="polite">
-    <b>Modelo activo: Euclidiano (distancias en metros)</b>.
-    Cada celda suma cercanía a <b>rutas bioculturales</b>, <b>patrimonio</b>, <b>caminos</b> y <b>agua</b>,
-    y resta por <b>tiraderos</b>. Ajusta <b>pesos</b> y el <b>umbral “apto”</b>. Haz clic en el mapa para ver
-    la explicación del punto y la <b>factibilidad</b> (checklist + riesgo).
-  </div>
+<div id="app" class="relative">
+  <!-- MAPA -->
+  <div id="map" class="z-0" aria-label="Mapa"></div>
 
-  <aside class="panel" aria-live="polite">
-    <h4 style="display:flex;align-items:center;gap:8px">
-      <i class="fa-solid fa-diagram-project"></i> Modelos y factibilidad
-      <span id="modeTag" class="chip" style="margin-left:auto;cursor:pointer" title="Cambiar a modo experto">Modo: Sencillo</span>
-    </h4>
-
-    <div class="row">
-      <label for="algo">Modelo / Capa</label>
-      <div style="display:flex;gap:6px;align-items:center;flex:1">
-        <select id="algo" aria-label="Selecciona el modelo o capa de referencia">
-          <optgroup label="Funciona">
-            <option value="euclid" selected>Euclidiano (distancias)</option>
-          </optgroup>
-          <optgroup label="Capas / algoritmos (demo)">
-            <option value="buffers">(demo) Reglas por buffers</option>
-            <option value="gravity">(demo) Gravitacional (1/d²)</option>
-            <option value="costdist">(demo) Costo-distancia</option>
-            <option value="kernel">(demo) Kernel density</option>
-            <option value="voronoi">(demo) Voronoi</option>
-            <option value="isocronas">(demo) Isócronas de red</option>
-          </optgroup>
-        </select>
-        <button id="btnExplain" class="chip" title="¿Cómo funciona?">¿Qué es?</button>
-      </div>
-    </div>
-
-    <div class="row" title="Tamaño de la celda para el cálculo">
-      <label>Celda (km): <span id="cellKmVal">2</span></label>
-      <input id="cellKm" type="range" min="0.8" max="4" step="0.2" value="2" aria-label="Tamaño de celda">
-    </div>
-
-    <div id="expertZone" style="display:none">
-      <div class="row"><label>Peso Ruta <span id="wRutaVal">0.30</span></label><input id="wRuta" type="range" min="0" max="0.8" step="0.05" value="0.30"></div>
-      <div class="row"><label>Peso Patrimonio <span id="wPatrVal">0.25</span></label><input id="wPatr" type="range" min="0" max="0.8" step="0.05" value="0.25"></div>
-      <div class="row"><label>Peso Caminos <span id="wRoadVal">0.20</span></label><input id="wRoad" type="range" min="0" max="0.8" step="0.05" value="0.20"></div>
-      <div class="row"><label>Peso Agua <span id="wSprVal">0.15</span></label><input id="wSpr" type="range" min="0" max="0.8" step="0.05" value="0.15"></div>
-      <div class="row"><label>Peso Tiraderos (costo) <span id="wDumpVal">0.10</span></label><input id="wDump" type="range" min="0" max="0.8" step="0.05" value="0.10"></div>
-      <div class="chips" aria-label="Presets">
-        <button class="chip" data-preset="cons" title="Conservador: prioriza ambiente">Conservador</button>
-        <button class="chip active" data-preset="bal"  title="Balance">Balanceado</button>
-        <button class="chip" data-preset="dev"  title="Más desarrollo">Desarrollo</button>
-        <button class="chip" id="btnReset" title="Restablecer pesos">Reset</button>
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:6px">
-      <label>Umbral “apto” <span id="thrVal">70</span></label>
-      <input id="thr" type="range" min="40" max="90" step="5" value="70" aria-label="Umbral apto">
-    </div>
-
-    <div class="row" style="gap:8px;align-items:center;margin-top:6px">
-      <label style="min-width:120px">Capas demo</label>
-      <label class="chip" title="Solo visual"><input type="checkbox" id="chkIso"> Isócronas</label>
-      <label class="chip" title="Solo visual"><input type="checkbox" id="chkRisk" checked> Riesgo</label>
-      <label class="chip" title="Solo visual"><input type="checkbox" id="chkHot"> Hotspots</label>
-      <label class="chip" title="Mostrar bordes de celdas"><input type="checkbox" id="chkHex" checked> Celdas</label>
-    </div>
-
-    <button id="btnRecalc" class="btn" title="Recalcular"><i class="fa-solid fa-rotate"></i> Actualizar</button>
-
-    <hr class="sep">
-
-    <div id="site-panel" style="margin-top:6px;display:none">
-      <div class="row" style="justify-content:space-between">
-        <strong>Indicadores del punto</strong>
-        <span id="kv-score" class="pill">—</span>
-      </div>
-      <div class="bar" aria-hidden="true"><div id="bar-score"><span style="width:0%"></span></div></div>
-
-      <div class="small" style="margin-top:8px;line-height:1.6">
-        <div>Distancia a Ruta: <b id="kv-ruta">— m</b> · Aporte: <b id="ct-ruta">—</b></div>
-        <div>Patrimonio: <b id="kv-patr">— m</b> · Aporte: <b id="ct-patr">—</b></div>
-        <div>Caminos: <b id="kv-road">— m</b> · Aporte: <b id="ct-road">—</b></div>
-        <div>Agua: <b id="kv-agua">— m</b> · Aporte: <b id="ct-agua">—</b></div>
-        <div>Tiraderos (más lejos = mejor): <b id="kv-dump">— m</b> · Aporte: <b id="ct-dump">—</b></div>
-      </div>
-
-      <hr class="sep">
-
-      <div>
-        <strong><i class="fa-solid fa-seedling"></i> Factibilidad</strong>
-        <div class="small" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
-          <label><input type="checkbox" id="c-acc"> Acceso (&le; 1,000 m)</label>
-          <label><input type="checkbox" id="c-agua"> Agua (&le; 1,000 m)</label>
-          <label><input type="checkbox" id="c-patr"> Patrimonio (&le; 2,000 m)</label>
-          <label><input type="checkbox" id="c-pres"> Lejos de tiraderos (&ge; 1,500 m)</label>
-          <label><input type="checkbox" id="c-ten" checked> Tenencia compatible</label>
-          <label><input type="checkbox" id="c-riesgo"> Riesgo ≤ medio</label>
+  <!-- HERO / Pitch para decisión -->
+  <div class="absolute left-3 top-3 z-50 max-w-[560px]">
+    <div class="panel-glass rounded-2xl shadow-soft p-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl grid place-items-center bg-emerald-50/20 border border-emerald-200/30 text-emerald-200">
+          <i class="fa-solid fa-compass-drafting"></i>
         </div>
-        <div class="row" style="margin-top:6px">
-          <span>Resultado</span>
-          <span id="res" class="pill">—</span>
+        <div>
+          <div class="font-extrabold leading-tight text-white">Tablero de decisión: nuevas zonas de <span class="text-brand">ecoturismo</span></div>
+          <div class="text-sm text-muted">
+            Ajusta prioridades, activa lo que buscas y simula dónde hay <b>mejor factibilidad</b>. Incluye <b>riesgo simulado</b> (p. ej., focos de incendio) para prevención.
+          </div>
         </div>
-        <div id="res-why" class="small" style="margin-top:6px"></div>
+      </div>
+      <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+        <span class="inline-flex items-center gap-2 px-2 py-1 rounded-full border border-emerald-200/40 bg-emerald-900/20 text-emerald-100"><i class="fa-solid fa-tree"></i> Selección de sitios</span>
+        <span class="inline-flex items-center gap-2 px-2 py-1 rounded-full border border-emerald-200/40 bg-emerald-900/20 text-emerald-100"><i class="fa-solid fa-fire"></i> Riesgo / prevención</span>
+        <span class="inline-flex items-center gap-2 px-2 py-1 rounded-full border border-emerald-200/40 bg-emerald-900/20 text-emerald-100"><i class="fa-solid fa-truck-plane"></i> Logística básica</span>
       </div>
     </div>
-  </aside>
-
-  <div class="legend" id="legend">
-    <strong id="legTitle">Leyenda (Euclidiano)</strong>
-    <div id="legContent" style="margin-top:6px">
-      <div><span class="sw" style="background:#16a34a"></span> Alta (≥75)</div>
-      <div><span class="sw" style="background:#ca8a04"></span> Media (50–74)</div>
-      <div><span class="sw" style="background:#dc2626"></span> Baja (&lt;50)</div>
-      <hr class="sep">
-      <div class="pill"><i class="fa-solid fa-check"></i> “Apto” = nota ≥ umbral + checklist + riesgo</div>
-    </div>
   </div>
 
-  <div class="footerbar" aria-hidden="false">
-    <div class="status" id="status">Lat: —, Lng: — · Alt: —</div>
-    <div class="tools">
-      <button id="btnMeasure" class="tool" title="Medir distancia (m)"><i class="fa-solid fa-ruler"></i> Medir</button>
-      <button id="btnCenter" class="tool" title="Centrar área de estudio"><i class="fa-solid fa-crosshairs"></i> Centrar</button>
-    </div>
-  </div>
-</main>
 
-<!-- Modal explicación -->
-<div id="modalBackdrop" class="modal-backdrop" aria-hidden="true"></div>
-<div id="modelModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
-  <div class="card">
-    <header>
-      <div style="display:flex;align-items:center;gap:8px"><i class="fa-regular fa-circle-question"></i> <strong id="modalTitle">Acerca de esta capa</strong></div>
-      <button id="modalClose" class="chip" aria-label="Cerrar">Cerrar</button>
-    </header>
-    <div id="modalBody" class="content"></div>
+<!-- PANEL DERECHO (compacto) -->
+<aside class="absolute right-3 top-3 z-50 w-[380px] max-w-[92vw] rounded-2xl shadow-deep p-3 space-y-3 panel-glass-dark text-[13px]">
+  <header class="flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="h-8 w-8 rounded-xl grid place-items-center bg-emerald-50/15 border border-emerald-200/30 text-emerald-200">
+        <i class="fa-solid fa-mountain-sun"></i>
+      </div>
+      <div class="font-bold leading-tight text-white">Plan de <span class="text-brand">Ecoturismo</span></div>
+    </div>
+    <button id="btnModal" class="text-[11px] px-2.5 py-1.5 rounded-xl btn-ghost">¿Cómo funciona?</button>
+  </header>
+
+  <!-- 1) Prioridades -->
+  <section class="rounded-xl section-dark p-3">
+    <div class="flex items-center justify-between">
+      <div class="font-semibold text-white text-[13px]">1) Dime qué te importa más</div>
+      <label class="flex items-center gap-2 text-[11px] text-emerald-100">
+        <span>Modo optimista</span>
+        <input id="optSwitch" type="checkbox" class="accent-emerald-400" checked>
+      </label>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 mt-2 text-white">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2"><span class="text-base">🌄</span><b>Bonitos</b></div>
+        <div class="flex gap-1" data-lvl="nice">
+          <button class="lvl-sm" data-v="0">Nada</button>
+          <button class="lvl-sm" data-v="1">Poco</button>
+          <button class="lvl-sm" data-v="2" data-active="1">Normal</button>
+          <button class="lvl-sm" data-v="3">Mucho</button>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <div class="flex items-center gap-2"><span class="text-base">🛖</span><b>Servicios</b></div>
+        <div class="flex gap-1" data-lvl="svc">
+          <button class="lvl-sm" data-v="0">Nada</button>
+          <button class="lvl-sm" data-v="1">Poco</button>
+          <button class="lvl-sm" data-v="2">Normal</button>
+          <button class="lvl-sm" data-v="3" data-active="1">Mucho</button>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <div class="flex items-center gap-2"><span class="text-base">🛣️</span><b>Accesos</b></div>
+        <div class="flex gap-1" data-lvl="acc">
+          <button class="lvl-sm" data-v="0">Nada</button>
+          <button class="lvl-sm" data-v="1">Poco</button>
+          <button class="lvl-sm" data-v="2" data-active="1">Normal</button>
+          <button class="lvl-sm" data-v="3">Mucho</button>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <div class="flex items-center gap-2"><span class="text-base">⚠️</span><b>Evitar riesgo</b></div>
+        <div class="flex gap-1" data-lvl="risk">
+          <button class="lvl-sm" data-v="0">Nada</button>
+          <button class="lvl-sm" data-v="1">Poco</button>
+          <button class="lvl-sm" data-v="2" data-active="1">Normal</button>
+          <button class="lvl-sm" data-v="3">Mucho</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="priorSum" class="mt-2 label-xs">Tus prioridades: Bonitos: Normal · Servicios: Mucho · Accesos: Normal · Riesgo: Normal</div>
+  </section>
+
+  <!-- 2) ¿Qué te gustaría encontrar? -->
+  <section class="rounded-xl section-dark p-3">
+    <div class="font-semibold mb-2 text-white text-[13px]">2) Activa lo que buscas</div>
+
+    <div class="label-xs mb-1">Lugares bonitos</div>
+    <div class="flex flex-wrap gap-1.5 mb-2" id="chips-nice">
+      <button class="chip-sm" data-group="nice" data-key="cascada">Cascada</button>
+      <button class="chip-sm" data-group="nice" data-key="mirador">Mirador</button>
+      <button class="chip-sm" data-group="nice" data-key="bosque">Áreas verdes</button>
+    </div>
+
+    <div class="label-xs mb-1">Servicios</div>
+    <div class="flex flex-wrap gap-1.5 mb-2" id="chips-svc">
+      <button class="chip-sm" data-group="svc" data-key="agua">Agua</button>
+      <button class="chip-sm" data-group="svc" data-key="luz">Luz</button>
+      <button class="chip-sm" data-group="svc" data-key="hospedaje">Hospedaje</button>
+    </div>
+
+    <div class="label-xs mb-1">Accesos</div>
+    <div class="flex flex-wrap gap-1.5 mb-2" id="chips-acc">
+      <button class="chip-sm" data-group="acc" data-key="camino">Camino</button>
+      <button class="chip-sm" data-group="acc" data-key="vereda">Vereda</button>
+    </div>
+
+    <div class="label-xs mb-1">Riesgos a evitar (simulado)</div>
+    <div class="flex flex-wrap gap-1.5" id="chips-risk">
+      <button class="chip-sm" data-group="risk" data-key="basura">Basura</button>
+      <button class="chip-sm" data-group="risk" data-key="incendio">Incendio</button>
+      <button class="chip-sm" data-group="risk" data-key="barranca">Barranca</button>
+    </div>
+  </section>
+
+  <!-- 3) Detalles de cálculo -->
+  <section class="rounded-xl section-dark p-3">
+    <div class="grid items-center grid-cols-[auto_1fr_auto_auto] gap-3 text-white">
+      <span class="text-[13px]">Tamaño de cuadrito</span>
+      <input id="cellKm" type="range" min="1" max="5" step="0.5" value="2" class="w-full accent-emerald-400">
+      <span id="cellKmVal" class="tabular-nums w-7 text-right text-[12px]">2</span><span class="text-[12px]">km</span>
+    </div>
+    <div class="mt-2 grid items-center grid-cols-[auto_1fr_auto] gap-3 text-white">
+      <span class="text-[13px]">Meta mínima</span>
+      <input id="thr" type="range" min="40" max="90" step="5" value="60" class="w-full accent-emerald-400">
+      <span id="thrVal" class="tabular-nums w-8 text-right text-[12px]">60</span>
+    </div>
+    <div class="flex gap-2 pt-3">
+      <button id="btnRandom" class="flex-1 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold shadow text-[12px]">Re-sembrar puntos</button>
+      <button id="btnRun" class="flex-1 h-9 rounded-xl btn-ghost hover:bg-white/16 font-semibold text-[12px]">Actualizar</button>
+    </div>
+  </section>
+
+  <!-- Panel del clic -->
+  <section id="panelInfo" class="hidden rounded-xl section-dark p-3 text-white">
+    <div class="flex items-center justify-between text-[13px]">
+      <div class="font-semibold">Puntaje del sitio</div>
+      <div id="scoreTag" class="px-2 py-1 rounded-lg border border-emerald-200/40 bg-emerald-900/20 text-[11px]">—</div>
+    </div>
+    <div class="bar h-2 w-full border border-emerald-200/40 bg-emerald-900/20 rounded mt-2 overflow-hidden">
+      <span id="scoreBar" style="width:0%"></span>
+    </div>
+    <dl class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11px]">
+      <div>Bonitos: <b id="kvNice">— m</b> · <b id="ctNice">—</b></div>
+      <div>Servicios: <b id="kvSvc">— m</b> · <b id="ctSvc">—</b></div>
+      <div>Accesos: <b id="kvAcc">— m</b> · <b id="ctAcc">—</b></div>
+      <div>Riesgo (menor=mejor): <b id="kvRisk">—</b> · <b id="ctRisk">—</b></div>
+    </dl>
+    <div class="mt-2 text-[13px] flex items-center justify-between">
+      <span>Resultado</span>
+      <span id="res" class="px-2.5 py-1 rounded-full border border-emerald-200/40 bg-emerald-900/20 text-[11px]">—</span>
+    </div>
+    <div id="resWhy" class="mt-1 text-[11px] text-emerald-100"></div>
+  </section>
+
+  <!-- Cálculo (opcional) -->
+  <section class="rounded-xl section-dark p-3 text-[12px] text-white">
+    <details>
+      <summary class="cursor-pointer select-none font-semibold">Ver c
+
+  <!-- Estado -->
+  <div id="status" class="absolute left-3 right-3 bottom-3 z-50 text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200/40 bg-emerald-900/20 text-emerald-50 backdrop-blur shadow">Lat: —, Lng: —</div>
+</div>
+
+<!-- Leyenda compacta -->
+<div class="fixed left-3 bottom-3 z-[60] min-w-[260px] max-w-[86vw] rounded-xl border border-emerald-200/40 bg-emerald-900/30 backdrop-blur shadow p-3 text-xs text-emerald-50">
+  <div class="font-semibold">Colores del mapa</div>
+  <div class="mt-2 grid grid-cols-1 gap-1">
+    <div class="flex items-center gap-2"><span class="inline-block w-3.5 h-3.5 rounded border border-emerald-200/40" style="background:#22c55e"></span> Alta (≥65)</div>
+    <div class="flex items-center gap-2"><span class="inline-block w-3.5 h-3.5 rounded border border-emerald-200/40" style="background:#facc15"></span> Media (45–64)</div>
+    <div class="flex items-center gap-2"><span class="inline-block w-3.5 h-3.5 rounded border border-emerald-200/40" style="background:#f87171"></span> Baja (&lt;45)</div>
+  </div>
+  <hr class="my-2 border-emerald-200/30">
+  <div class="space-y-1">
+    <div class="flex items-center justify-between"><span>Cuadrito</span><span><b id="lg-cell">—</b> km</span></div>
+    <div class="flex items-center justify-between"><span>Meta mínima</span><span><b id="lg-thr">—</b></span></div>
+    <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
+      <div class="flex items-center justify-between"><span>Prior. Bonitos</span><b id="lg-wNice">—</b></div>
+      <div class="flex items-center justify-between"><span>Prior. Servicios</span><b id="lg-wSvc">—</b></div>
+      <div class="flex items-center justify-between"><span>Prior. Accesos</span><b id="lg-wAcc">—</b></div>
+      <div class="flex items-center justify-between"><span>Prior. Evitar Riesgo</span><b id="lg-wRisk">—</b></div>
+    </div>
   </div>
 </div>
 
-<script>
-/* ====== utilidades ====== */
-const $=(id)=>document.getElementById(id);
-const clamp01=x=>Math.max(0,Math.min(1,x));
-const fmtPct=x=>(Math.round(x*1000)/10)+'%';
-const fmtM=v=>Intl.NumberFormat('es-MX').format(Math.round(v))+' m';
-function debounce(fn,ms=160){let t=null;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}}
+<!-- Modal “Cómo funciona” -->
+<div id="modalBackdrop" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[80]"></div>
+<div id="modal" class="fixed inset-0 hidden z-[81] items-center justify-center">
+  <div class="w-[92vw] max-w-3xl max-h-[86vh] overflow-auto bg-white border border-[var(--b)] rounded-2xl shadow-deep">
+    <div class="sticky top-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--b)] bg-emerald-50 text-emerald-900">
+      <div class="flex items-center gap-2"><i class="fa-regular fa-circle-question"></i><strong>Cómo usar esta herramienta</strong></div>
+      <button id="modalClose" class="text-xs px-3 py-1.5 rounded-xl border border-[var(--b)] bg-white hover:bg-emerald-50">Cerrar</button>
+    </div>
+    <div class="p-4 text-[15px] leading-relaxed">
+      <p>Diseñada para <b>tomadores de decisión</b>. Permite visualizar <b>zonas con mayor factibilidad</b> para abrir nuevos servicios de ecoturismo y anticipar <b>riesgos simulados</b> como focos de incendio.</p>
+      <ol class="list-decimal ml-5 space-y-2 mt-2">
+        <li><b>Ajusta prioridades</b> (Bonitos, Servicios, Accesos y Evitar riesgo) o activa el <b>Modo optimista</b> para resaltar oportunidades.</li>
+        <li><b>Activa lo que buscas</b> (cascada, agua, camino, etc.).</li>
+        <li>Haz <b>clic en el mapa</b> para ver explicación del sitio y si resulta <b>APTO</b>.</li>
+        <li>La capa de riesgo (simulada) ayuda a orientar <b>prevención y brigadas</b>.</li>
+      </ol>
+      <p class="mt-3 text-emerald-900/90">Nota: Es una <b>demo con datos sintéticos</b> para mostrar el flujo de decisión; al conectar datos reales (POIs, servicios, infraestructura y modelos de riesgo) se convierte en una herramienta operativa.</p>
+    </div>
+  </div>
+</div>
 
-/* ====== mapa ====== */
-const map=L.map('map',{center:[17.1,-96.72],zoom:11,preferCanvas:true}); new L.Hash(map);
-const base=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-const sat =L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri/Maxar'});
-L.control.layers({"Mapa base":base,"Satélite":sat},{},{position:'topleft'}).addTo(map);
+<!-- ===== Municipios (pines) ===== -->
+<script>
+const placesWithCoordinates = [
+  { name:"San Pablo Huitzo, Oaxaca, Mexico", latitude:17.2667, longitude:-96.8833 },
+  { name:"San Francisco Telixtlahuaca, Oaxaca, Mexico", latitude:17.3167, longitude:-96.9000 },
+  { name:"Santiago Suchilquitongo, Oaxaca, Mexico", latitude:17.2333, longitude:-96.8667 },
+  { name:"San Pablo Villa de Mitla, Oaxaca, Mexico", latitude:16.9261, longitude:-96.3597 },
+  { name:"La Unión Zapata, Oaxaca, Mexico", latitude:17.1000, longitude:-96.8000 },
+  { name:"Villa Díaz Ordaz, Oaxaca, Mexico", latitude:17.2000, longitude:-96.7500 },
+  { name:"San Juan Bautista Guelache, Oaxaca, Mexico", latitude:17.1833, longitude:-96.8167 },
+  { name:"San Miguel Etla, Oaxaca, Mexico", latitude:17.2000, longitude:-96.8000 },
+  { name:"Tlalixtac de Cabrera, Oaxaca, Mexico", latitude:17.1167, longitude:-96.6833 },
+  { name:"San Antonio de la Cal, Oaxaca, Mexico", latitude:17.0833, longitude:-96.7167 },
+  { name:"San Agustín de las Juntas, Oaxaca, Mexico", latitude:17.0667, longitude:-96.7333 },
+  { name:"San Marcos Tlapazola, Oaxaca, Mexico", latitude:16.9500, longitude:-96.7000 },
+  { name:"San Bartolomé Quialana, Oaxaca, Mexico", latitude:16.8833, longitude:-96.6167 },
+  { name:"San Gabriel Etla, Oaxaca, Mexico", latitude:17.2136, longitude:-96.7692 }
+];
+</script>
+
+<script>
+/* ===== helpers ===== */
+const $=id=>document.getElementById(id);
+const clamp01=x=>Math.max(0,Math.min(1,x));
+const fmtM=v=>Intl.NumberFormat('es-MX').format(Math.round(v))+' m';
+const pct=x=>(Math.round(x*1000)/10)+'%';
+const MAX_M=4000;
+
+/* ===== mapa (satélite por defecto) ===== */
+const map = L.map('map',{center:[17.08,-96.72],zoom:11,preferCanvas:true});
+
+// Satélite ESRI
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19, attribution:'Tiles © Esri/Maxar'}).addTo(map);
+// OSM alterno
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'});
+L.control.layers({"Satélite":sat,"Mapa base":osm},{},{position:'topleft'}).addTo(map);
 L.control.scale({imperial:false}).addTo(map);
 
-const geoc=L.Control.geocoder({defaultMarkGeocode:false,placeholder:'Busca un lugar'}).addTo(map);
-geoc.on('markgeocode',e=>{const b=e.geocode.bbox;map.fitBounds(L.latLngBounds(b.getSouthEast(),b.getNorthWest()).pad(.12));});
+// Pane para animar hexágonos (aplica CSS @keyframes)
+map.createPane('hex'); map.getPane('hex').classList.add('hex-pane');
 
-/* ====== datos simulados ====== */
-const pts=[{name:"Huitzo",lat:17.2667,lng:-96.8833},{name:"Telixtlahuaca",lat:17.3167,lng:-96.9},{name:"Etla",lat:17.17,lng:-96.8},{name:"Tlalixtac",lat:17.1167,lng:-96.6833},{name:"Huayápam",lat:17.1167,lng:-96.65},{name:"Mitla",lat:16.9261,lng:-96.3597}];
-const fcPoints={type:'FeatureCollection',features:pts.map(p=>({type:'Feature',geometry:{type:'Point',coordinates:[p.lng,p.lat]},properties:{name:p.name}}))};
-const labels=L.layerGroup();
-L.geoJSON(fcPoints,{pointToLayer:(f,ll)=>{
-  const icon=L.divIcon({className:'',html:`<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 3px 8px rgba(0,0,0,.20))"><svg viewBox="0 0 28 38" width="28" height="38"><path d="M14 2c-6.1 0-11 4.64-11 10.36 0 7.24 9.5 18.56 10.08 19.28a1.2 1.2 0 0 0 1.84 0C15.5 30.92 25 19.6 25 12.36 25 6.64 20.1 2 14 2z" fill="#fff"/><path d="M14 3.4c-5.35 0-9.65 4.07-9.65 9.1 0 6.38 8.35 16.35 8.86 16.98.33.4.95.4 1.28 0 .51-.63 8.86-10.6 8.86-16.98 0-5.03-4.3-9.1-9.65-9.1z" fill="#16a34a" stroke="#0a6b55" stroke-width="1"/><circle cx="14" cy="12.5" r="3.2" fill="rgba(255,255,255,.95)"/></svg></div>`,iconSize:[28,38],iconAnchor:[14,38]});
-  const m=L.marker(ll,{icon}); m.bindPopup(`<b>${f.properties.name}</b>`);
-  const lab=L.divIcon({className:'',iconSize:[0,0],iconAnchor:[-6,44],html:`<div style="font-weight:700;color:#063a29;background:#fff;border:1px solid #d8efe3;padding:2px 6px;border-radius:6px">${f.properties.name}</div>`});
-  L.marker(ll,{icon:lab}).addTo(labels);
-  return m;
-}}).addTo(map);
-labels.addTo(map);
-
-/* Área de estudio */
-let polyConcave=null;
-try{polyConcave=turf.concave(fcPoints,{maxEdge:20,units:'kilometers'});}catch{}
-if(!polyConcave){
-  const bufs=fcPoints.features.map(pt=>turf.buffer(pt,2,{units:'kilometers'}));
-  let uni=bufs[0]; for(let i=1;i<bufs.length;i++) uni=turf.union(uni,bufs[i]); polyConcave=uni;
-}
-const layerConcave=L.geoJSON(polyConcave,{style:{color:'#0e7a3a',weight:2,fillColor:'#a7f3d0',fillOpacity:.15}}).addTo(map);
-const centerArea = turf.centerOfMass(polyConcave).geometry.coordinates.reverse();
-map.fitBounds(L.featureGroup([labels,layerConcave]).getBounds().pad(.08));
-
-/* Criterios base */
-const lyrSprings=L.layerGroup([
-  L.circleMarker([17.24,-96.82],{radius:6,color:'#0ea5e9',fillColor:'#0ea5e9',fillOpacity:.95}),
-  L.circleMarker([17.18,-96.78],{radius:6,color:'#0ea5e9',fillColor:'#0ea5e9',fillOpacity:.95})
-]).addTo(map);
-const lyrRoads=L.polyline([[17.35,-96.98],[17.30,-96.92],[17.24,-96.83],[17.20,-96.75],[17.12,-96.70],[16.99,-96.55]],{color:'#888da1',weight:4,opacity:.9}).addTo(map);
-const lyrDumps=L.layerGroup([
-  L.circleMarker([17.24,-96.88],{radius:7,color:'#b45309',fillColor:'#b45309',fillOpacity:.95}),
-  L.circleMarker([17.18,-96.80],{radius:7,color:'#b45309',fillColor:'#b45309',fillOpacity:.95})
-]).addTo(map);
-
-/* POIs externos (opcional) */
-const POIS_URL='https://raw.githubusercontent.com/hermecp/geoportalbiocultural/refs/heads/main/huitzo_pois.geojson';
-const poisByCat=new Map();
-function toFCGroup(g){const feats=[]; if(!g) return turf.featureCollection(feats); g.eachLayer(l=>{ if(l.getLatLng){const ll=l.getLatLng(); feats.push(turf.point([ll.lng,ll.lat]));}}); return turf.featureCollection(feats);}
-function toFCLines(pl){const ll=pl.getLatLngs(); if(!ll.length) return turf.featureCollection([]); return turf.featureCollection([turf.lineString(ll.map(p=>[p.lng,p.lat]))]);}
-fetch(POIS_URL).then(r=>r.json()).then(gj=>{
-  gj.features.forEach(f=>{
-    const cat=f.properties?.category||'sin';
-    if(!poisByCat.has(cat)) poisByCat.set(cat,L.layerGroup().addTo(map));
-    const ll=L.latLng(f.geometry.coordinates[1],f.geometry.coordinates[0]);
-    poisByCat.get(cat).addLayer(L.marker(ll));
+// Municipios: pines + etiquetas con halo (sin cajas blancas)
+const placesLayer = L.layerGroup().addTo(map);
+placesWithCoordinates.forEach(p=>{
+  const ll=[p.latitude,p.longitude];
+  const pin = L.divIcon({
+    className:'', iconSize:[28,38], iconAnchor:[14,38],
+    html:`<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 3px 8px rgba(0,0,0,.35))">
+            <svg viewBox="0 0 28 38" width="28" height="38">
+              <path d="M14 2c-6.1 0-11 4.64-11 10.36 0 7.24 9.5 18.56 10.08 19.28a1.2 1.2 0 0 0 1.84 0C15.5 30.92 25 19.6 25 12.36 25 6.64 20.1 2 14 2z" fill="#fff"/>
+              <path d="M14 3.4c-5.35 0-9.65 4.07-9.65 9.1 0 6.38 8.35 16.35 8.86 16.98.33.4.95.4 1.28 0 .51-.63 8.86-10.6 8.86-16.98 0-5.03-4.3-9.1-9.65-9.1z" fill="#16a34a" stroke="#0a6b55" stroke-width="1"/>
+              <circle cx="14" cy="12.5" r="3.2" fill="rgba(255,255,255,.95)"/>
+            </svg>
+          </div>`
   });
-  debBuild();
-}).catch(()=>{/* offline OK */});
-
-/* ====== opcionales demo ====== */
-const modelsLayerGroup=L.layerGroup().addTo(map);
-let currentRiskLookup=null;
-function refreshOptional(hexfc){
-  modelsLayerGroup.clearLayers();
-  const roadFC=toFCLines(lyrRoads);
-
-  if($('chkIso').checked && roadFC.features.length){
-    const iso5 =turf.buffer(roadFC.features[0],5,{units:'kilometers'});
-    const iso10=turf.buffer(roadFC.features[0],10,{units:'kilometers'});
-    L.geoJSON(iso10,{style:{color:'#93c5fd',weight:1,fillOpacity:.06}}).addTo(modelsLayerGroup);
-    L.geoJSON(iso5 ,{style:{color:'#60a5fa',weight:1.5,fillOpacity:.10}}).addTo(modelsLayerGroup);
-  }
-
-  if($('chkRisk').checked && hexfc){
-    const MAXM=4000; const riskFC=JSON.parse(JSON.stringify(hexfc));
-    riskFC.features.forEach(f=>{
-      const p=turf.centerOfMass(f);
-      const slope=Math.abs(p.geometry.coordinates[1]-17.1)*80;
-      const hazard=clamp01(slope/30);
-      let dRoad=5000; if(roadFC.features.length){ dRoad=Math.min(...roadFC.features.map(ls=>turf.pointToLineDistance(p,ls,{units:'meters'}))); }
-      const exposure=clamp01(1 - Math.min(dRoad,MAXM)/MAXM);
-      const fcD=toFCGroup(lyrDumps); const dDump=fcD.features.length?turf.distance(p,turf.nearestPoint(p,fcD),{units:'meters'}):5000;
-      const vuln=clamp01(1 - Math.min(dDump,MAXM)/MAXM);
-      f.properties.risk=clamp01(hazard*exposure*(0.6*vuln+0.4*exposure));
-    });
-    L.geoJSON(riskFC,{style:ft=>({color:'rgba(0,0,0,.18)',weight:1,fillOpacity:.28,fillColor: ft.properties.risk>0.66?'#fecaca':(ft.properties.risk>0.33?'#fde68a':'#bbf7d0')})}).addTo(modelsLayerGroup);
-    currentRiskLookup=new Map();
-    riskFC.features.forEach(f=>{ const c=turf.centerOfMass(f).geometry.coordinates.join(','); currentRiskLookup.set(c,f.properties.risk); });
-  }else{ currentRiskLookup=null; }
-
-  if($('chkHot').checked){
-    const fcPatr=toFCGroup(poisByCat.get('sitios de patrimonio'));
-    const base = fcPatr.features.length? fcPatr : turf.featureCollection([turf.point([-96.78,17.18])]);
-    const b1=turf.buffer(base,1.2,{units:'kilometers'});
-    const b2=turf.buffer(base,2.4,{units:'kilometers'});
-    L.geoJSON(b2,{style:{color:'#c4b5fd',weight:1,fillOpacity:.06}}).addTo(modelsLayerGroup);
-    L.geoJSON(b1,{style:{color:'#a78bfa',weight:1.5,fillOpacity:.10}}).addTo(modelsLayerGroup);
-  }
-}
-
-/* ====== UI ====== */
-let expert=false;
-$('modeTag').addEventListener('click',()=>{
-  expert=!expert; $('expertZone').style.display=expert?'block':'none';
-  $('modeTag').textContent='Modo: '+(expert?'Experto':'Sencillo');
+  L.marker(ll,{icon:pin}).addTo(placesLayer).bindPopup(`<b>${p.name}</b>`);
+  // Etiqueta permanente sin caja
+  L.tooltip({permanent:true, direction:'right', offset:[10,-6], className:'place-label'})
+    .setContent(p.name.split(',')[0])
+    .setLatLng(ll)
+    .addTo(placesLayer);
 });
-const cellKm=$('cellKm'); $('cellKmVal').textContent=cellKm.value;
-const thr=$('thr'); $('thrVal').textContent=thr.value;
-const wRuta=$('wRuta'),wPatr=$('wPatr'),wRoad=$('wRoad'),wSpr=$('wSpr'),wDump=$('wDump');
-['wRuta','wPatr','wRoad','wSpr','wDump'].forEach(id=>$(id+'Val').textContent=(+$(id).value).toFixed(2));
-const presets={cons:{ruta:.35,patr:.30,road:.10,spr:.20,dump:.05},bal:{ruta:.30,patr:.25,road:.20,spr:.15,dump:.10},dev:{ruta:.20,patr:.15,road:.35,spr:.15,dump:.15}};
-document.querySelectorAll('.chip[data-preset]').forEach(b=>b.addEventListener('click',()=>{
-  document.querySelectorAll('.chip[data-preset]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
-  const p=presets[b.dataset.preset]; wRuta.value=p.ruta; wPatr.value=p.patr; wRoad.value=p.road; wSpr.value=p.spr; wDump.value=p.dump;
-  ['wRuta','wPatr','wRoad','wSpr','wDump'].forEach(id=>$(id+'Val').textContent=(+$(id).value).toFixed(2)); debBuild();
-}));
-$('btnReset').addEventListener('click',()=>{const p=presets.bal; wRuta.value=p.ruta; wPatr.value=p.patr; wRoad.value=p.road; wSpr.value=p.spr; wDump.value=p.dump; ['wRuta','wPatr','wRoad','wSpr','wDump'].forEach(id=>$(id+'Val').textContent=(+$(id).value).toFixed(2)); debBuild();});
 
-/* ====== explicación de capas ====== */
-const modal=$('modelModal'),backdrop=$('modalBackdrop'),modalTitle=$('modalTitle'),modalBody=$('modalBody');
-function explain(algo){
-  let text='';
-  if(algo==='euclid'){
-    text = `<p class="small"><b>Euclidiano</b>: para cada celda, calculamos la <b>distancia en metros</b> a: rutas bioculturales, patrimonio, caminos y agua, y la distancia a tiraderos (que se invierte porque más lejos es mejor). Normalizamos (0–1) y combinamos con <b>pesos</b>. El resultado (0–100) es transparente y rápido para pre-selección.</p>`;
-  }else if(algo==='buffers'){text=`<p class="small"><b>Reglas por buffers</b> (demo): APTO si está a ≤2,000 m de patrimonio/agua y ≥1,500 m de tiraderos. Solo ilustrativo.</p>`;}
-  else if(algo==='gravity'){text=`<p class="small"><b>Gravitacional</b> (demo): los POIs “atraen” con 1/d² ponderado por importancia; sugiere polos de visita.</p>`;}
-  else if(algo==='costdist'){text=`<p class="small"><b>Costo-distancia</b> (demo): minutos de acceso con fricción (pendiente/suelo/red). Requiere ráster.</p>`;}
-  else if(algo==='kernel'){text=`<p class="small"><b>Kernel density</b> (demo): calor de concentraciones de POIs; útil para planear servicios.</p>`;}
-  else if(algo==='voronoi'){text=`<p class="small"><b>Voronoi</b> (demo): áreas de influencia más cercanas; ayuda a balancear cobertura.</p>`;}
-  else if(algo==='isocronas'){text=`<p class="small"><b>Isócronas de red</b> (demo): alcance en X min por caminos. Ideal para logística y brigadas.</p>`;}
-  modalTitle.textContent='Acerca de esta capa'; modalBody.innerHTML=text+`<p class="small"><i class="fa-solid fa-circle-info"></i> En esta demo, las capas “(demo)” no recalculan el puntaje; usa <b>Euclidiano</b> para evaluar.</p>`;
+// Ocultar etiquetas si el zoom es muy bajo
+function syncPlaceLabels(){
+  if(map.getZoom()<11) map.getContainer().classList.add('hide-place-labels');
+  else map.getContainer().classList.remove('hide-place-labels');
 }
-function openExplain(){backdrop.classList.add('open');modal.classList.add('open');}
-function closeExplain(){backdrop.classList.remove('open');modal.classList.remove('open');}
-$('modalClose').addEventListener('click',closeExplain); $('modalBackdrop').addEventListener('click',closeExplain);
-$('btnExplain').addEventListener('click',()=>{explain($('algo').value);openExplain();});
+map.on('zoomend',syncPlaceLabels); syncPlaceLabels();
 
-/* ====== modelo euclidiano (funciona) ====== */
-const MAX_M=4000; // 4 km
-const toBenefit=d=>clamp01(1-Math.min(d,MAX_M)/MAX_M);
-const toCost   =d=>clamp01(Math.min(d,MAX_M)/MAX_M);
+// BBOX por municipios
+const xs=placesWithCoordinates.map(p=>p.longitude);
+const ys=placesWithCoordinates.map(p=>p.latitude);
+const bbox=[Math.min(...xs)-0.15, Math.min(...ys)-0.15, Math.max(...xs)+0.15, Math.max(...ys)+0.15];
+map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]]);
 
-const suitGroup=L.layerGroup().addTo(map);
-let modelLayer=null,feasLayer=null,currentHexFC=null;
+/* ===== datos simulados (subcategorías) ===== */
+const r=(a,b)=>a+Math.random()*(b-a);
+const rp=()=>[r(bbox[0],bbox[2]),r(bbox[1],bbox[3])];
 
-function scoreColor(s){ if(s>=75) return '#16a34a'; if(s>=50) return '#ca8a04'; return '#dc2626'; }
+const src={ nice:{cascada:[],mirador:[],bosque:[]},
+            svc:{agua:[],luz:[],hospedaje:[]},
+            acc:{camino:[],vereda:[]},
+            risk:{basura:[],incendio:[],barranca:[]} };
+const srcLayer=L.layerGroup().addTo(map);
 
-function buildSuit(){
-  if(modelLayer){suitGroup.removeLayer(modelLayer);modelLayer=null;}
-  if(feasLayer){suitGroup.removeLayer(feasLayer);feasLayer=null;}
+function reseed(optimista=true){
+  const multPos=optimista? 1.35:1.0;
+  const multRisk=optimista? 0.65:1.0;
+  const riskScale=optimista? 0.55:1.0;
+  const mkRisk=()=>({risk:(Math.random()*0.8+0.2)*riskScale});
 
+  src.nice.cascada  = Array.from({length:Math.round(8*multPos)}, ()=>turf.point(rp()));
+  src.nice.mirador  = Array.from({length:Math.round(12*multPos)},()=>turf.point(rp()));
+  src.nice.bosque   = Array.from({length:Math.round(16*multPos)},()=>turf.point(rp()));
+
+  src.svc.agua      = Array.from({length:Math.round(14*multPos)},()=>turf.point(rp()));
+  src.svc.luz       = Array.from({length:Math.round(12*multPos)},()=>turf.point(rp()));
+  src.svc.hospedaje = Array.from({length:Math.round(10*multPos)},()=>turf.point(rp()));
+
+  src.acc.camino    = Array.from({length:Math.round(12*multPos)},()=>turf.point(rp()));
+  src.acc.vereda    = Array.from({length:Math.round(14*multPos)},()=>turf.point(rp()));
+
+  src.risk.basura   = Array.from({length:Math.round(8*multRisk)}, ()=>turf.point(rp(),mkRisk()));
+  src.risk.incendio = Array.from({length:Math.round(6*multRisk)}, ()=>turf.point(rp(),mkRisk()));
+  src.risk.barranca = Array.from({length:Math.round(6*multRisk)}, ()=>turf.point(rp(),mkRisk()));
+
+  srcLayer.clearLayers();
+  const draw=(fc,color,label)=>L.geoJSON(turf.featureCollection(fc),{
+    pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color,fillColor:color,fillOpacity:.95})
+  }).addTo(srcLayer).bindTooltip(label);
+
+  draw(src.nice.cascada,  '#22c55e','Cascada');
+  draw(src.nice.mirador,  '#22c55e','Mirador');
+  draw(src.nice.bosque,   '#22c55e','Áreas verdes');
+
+  draw(src.svc.agua,      '#38bdf8','Agua');
+  draw(src.svc.luz,       '#38bdf8','Luz');
+  draw(src.svc.hospedaje, '#38bdf8','Hospedaje');
+
+  draw(src.acc.camino,    '#94a3b8','Camino');
+  draw(src.acc.vereda,    '#94a3b8','Vereda');
+
+  draw(src.risk.basura,   '#f87171','Basura');
+  draw(src.risk.incendio, '#f87171','Incendio');
+  draw(src.risk.barranca, '#f87171','Barranca');
+}
+
+/* ===== estado UI ===== */
+const chosen={ nice:new Set(['cascada','mirador','bosque']),
+              svc:new Set(['agua','luz','hospedaje']),
+              acc:new Set(['camino','vereda']),
+              risk:new Set(['basura','incendio','barranca']) };
+const levels={nice:3,svc:3,acc:2,risk:2};
+const levelToWeight=[0,0.20,0.33,0.60]; // Nada, Poco, Normal, Mucho
+
+/* ===== modelo ===== */
+const hexLayerGroup=L.layerGroup().addTo(map);
+hexLayerGroup.options.pane='hex';
+let gridFC=null;
+
+const combineSelected=g=>turf.featureCollection([...chosen[g]].flatMap(k=>src[g][k]||[]));
+const nearestOrMax=(p,fc)=> fc.features.length? turf.distance(p,turf.nearestPoint(p,fc),{units:'meters'}) : MAX_M;
+
+function runModel(){
+  hexLayerGroup.clearLayers();
   const cell=parseFloat($('cellKm').value);
-  const w={ruta:+(wRuta?.value||0.30),patr:+(wPatr?.value||0.25),road:+(wRoad?.value||0.20),spr:+(wSpr?.value||0.15),dump:+(wDump?.value||0.10)};
-  const wSum=Math.max(1e-9,w.ruta+w.patr+w.road+w.spr+w.dump);
+  const optimista=$('optSwitch').checked;
 
-  const fcRoutes = (toFCGroup(poisByCat.get('rutas y espacios bioculturales')).features.length? toFCGroup(poisByCat.get('rutas y espacios bioculturales')) : turf.featureCollection([turf.point([-96.78,17.18])]));
-  const fcPatr   = (toFCGroup(poisByCat.get('sitios de patrimonio')).features.length? toFCGroup(poisByCat.get('sitios de patrimonio')) : turf.featureCollection([turf.point([-96.83,17.24])]));
-  const fcDumps  = toFCGroup(lyrDumps);
-  const fcRoads  = toFCLines(lyrRoads);
-  const fcSpr    = toFCGroup(lyrSprings);
+  // prioridades → pesos normalizados
+  const wRaw={ nice:levelToWeight[levels.nice], svc:levelToWeight[levels.svc], acc:levelToWeight[levels.acc], risk:levelToWeight[levels.risk] };
+  const sumW=Math.max(1e-9,wRaw.nice+wRaw.svc+wRaw.acc+wRaw.risk);
+  const w={ nice:wRaw.nice/sumW, svc:wRaw.svc/sumW, acc:wRaw.acc/sumW, risk:wRaw.risk/sumW };
 
-  const hex=turf.hexGrid(turf.bbox(polyConcave),cell,{units:'kilometers'});
+  // parámetros amables (más verde)
+  const BIAS_GOOD = optimista? 0.68 : 1.0;  // <1 → potencia beneficios (raíz)
+  const RISK_ALPHA= optimista? 0.55 : 1.0;  // reduce penalización por riesgo
+  const GREEN=65, YELLOW=45;                // cortes de color
 
-  const dPoint=(p,fc,fb=4000)=>fc.features.length?turf.distance(p,turf.nearestPoint(p,fc),{units:'meters'}):fb;
-  const dLine =(p,fc)=>fc.features.length?Math.min(...fc.features.map(ls=>turf.pointToLineDistance(p,ls,{units:'meters'}))):4000;
+  // leyenda en vivo
+  $('lg-cell').textContent=$('cellKm').value;
+  $('lg-thr').textContent=$('thr').value;
+  $('lg-wNice').textContent=w.nice.toFixed(2);
+  $('lg-wSvc').textContent =w.svc.toFixed(2);
+  $('lg-wAcc').textContent =w.acc.toFixed(2);
+  $('lg-wRisk').textContent=w.risk.toFixed(2);
 
+  const fcNice=combineSelected('nice');
+  const fcSvc =combineSelected('svc');
+  const fcAcc =combineSelected('acc');
+  const fcHaz =combineSelected('risk');
+
+  const toBenefit=d=>Math.pow(clamp01(1-Math.min(d,MAX_M)/MAX_M),BIAS_GOOD);
+  const toPenalty=d=>clamp01(Math.min(d,MAX_M)/MAX_M);
+
+  const hex=turf.hexGrid(bbox,cell,{units:'kilometers'});
   hex.features=hex.features.map(c=>{
-    const inter=turf.intersect(c,polyConcave)||null;
-    if(!inter){ c.properties={score:0,feasible:false}; return c; }
-    const pc=turf.centerOfMass(inter);
-    const dRuta=dPoint(pc,fcRoutes), dPatr=dPoint(pc,fcPatr), dSpr=dPoint(pc,fcSpr), dDump=dPoint(pc,fcDumps), dRoad=dLine(pc,fcRoads);
-    const vRuta=toBenefit(dRuta), vPatr=toBenefit(dPatr), vSpr=toBenefit(dSpr), vRoad=toBenefit(dRoad), vDump=1-toCost(dDump);
-    const wN={ruta:w.ruta/wSum,patr:w.patr/wSum,road:w.road/wSum,spr:w.spr/wSum,dump:w.dump/wSum};
-    const score01=vRuta*wN.ruta + vPatr*wN.patr + vRoad*wN.road + vSpr*wN.spr + vDump*wN.dump;
-    const score=Math.round(score01*100);
+    const p=turf.centerOfMass(c);
+
+    const dNice=nearestOrMax(p,fcNice);
+    const dSvc =nearestOrMax(p,fcSvc);
+    const dAcc =nearestOrMax(p,fcAcc);
+
+    // riesgo
+    let h=0.4, dHaz=MAX_M;
+    if(fcHaz.features.length){
+      const n=turf.nearestPoint(p,fcHaz);
+      h = n.properties.risk ?? 0.4;
+      dHaz = turf.distance(p,n,{units:'meters'});
+    }
+
+    const vNice = toBenefit(dNice);
+    const vSvc  = toBenefit(dSvc);
+    const vAcc  = toBenefit(dAcc);
+    const vRisk = 1 - clamp01(RISK_ALPHA * h * (1 - toPenalty(dHaz)));
+
+    const score01 = vNice*w.nice + vSvc*w.svc + vAcc*w.acc + vRisk*w.risk;
 
     c.properties={
-      score,
-      raw:{dRuta:Math.round(dRuta),dPatr:Math.round(dPatr),dRoad:Math.round(dRoad),dSpr:Math.round(dSpr),dDump:Math.round(dDump)},
-      contr:{ruta:(vRuta*wN.ruta),patr:(vPatr*wN.patr),road:(vRoad*wN.road),spr:(vSpr*wN.spr),dump:(vDump*wN.dump)}
+      score: Math.round(score01*100),
+      raw:{ dNice:Math.round(dNice), dSvc:Math.round(dSvc), dAcc:Math.round(dAcc), dHaz:Math.round(dHaz), h:+h.toFixed(2) },
+      contr:{ nice:vNice*w.nice, svc:vSvc*w.svc, acc:vAcc*w.acc, risk:vRisk*w.risk, total:score01 },
+      cls: (score01*100>=GREEN)? 'g' : (score01*100>=YELLOW? 'y':'r')
     };
     return c;
   });
 
-  currentHexFC=hex; refreshOptional(currentHexFC);
+  gridFC=hex;
+  const thr=+$('thr').value;
 
-  // factibilidad
-  const thrV=+$('thr').value;
-  hex.features=hex.features.map(f=>{
-    const ctr=turf.centerOfMass(f).geometry.coordinates.join(',');
-    const risk=(currentRiskLookup&&currentRiskLookup.get(ctr)) ?? 0.5;
-    const riskOK=(risk<=0.66);
-    f.properties.feasible = (f.properties.score>=thrV) && (!$('chkRisk').checked || riskOK);
-    return f;
-  });
+  L.geoJSON(hex,{
+    pane:'hex',
+    style:f=>({color:'rgba(0,0,0,.22)',weight:1,fillOpacity:.55,
+      fillColor: f.properties.cls==='g'? '#22c55e' : (f.properties.cls==='y'? '#facc15' : '#f87171')}),
+    onEachFeature:(f,l)=>l.bindTooltip(`Puntaje: <b>${f.properties.score}</b>`,{sticky:true})
+  }).addTo(hexLayerGroup);
 
-  const showHex=$('chkHex').checked;
-  modelLayer=L.geoJSON(hex,{
-    style:ft=>({color: showHex?'rgba(0,0,0,.25)':'rgba(0,0,0,0)',weight:showHex?1:0,fillOpacity:.58,fillColor: scoreColor(ft.properties.score)}),
-    onEachFeature:(f,l)=>l.bindTooltip(`Nota (euclidiano): <b>${f.properties.score}</b>/100`,{sticky:true})
-  }).addTo(suitGroup);
+  const aptas={type:'FeatureCollection',features:hex.features.filter(f=>f.properties.score>=thr)};
+  L.geoJSON(aptas,{pane:'hex',style:()=>({color:'#bbf7d0',weight:2,fillOpacity:0})}).addTo(hexLayerGroup);
 
-  const feas={type:'FeatureCollection',features:hex.features.filter(f=>f.properties.feasible)};
-  feasLayer=L.geoJSON(feas,{style:()=>({color:'#166534',weight:2,fillOpacity:0})}).addTo(suitGroup);
+  const eq=$('eqSubs');
+  if(eq){ eq.innerHTML=`$\\alpha=${RISK_ALPHA.toFixed(2)},\\;w_b=${w.nice.toFixed(2)},\\;w_s=${w.svc.toFixed(2)},\\;w_a=${w.acc.toFixed(2)},\\;w_r=${w.risk.toFixed(2)}$`; if(window.MathJax) MathJax.typesetPromise(); }
 }
 
-/* click → panel del sitio + checklist (con distancias en m) */
+/* ===== interacción ===== */
+map.on('mousemove',e=>{ $('status').textContent=`Lat: ${e.latlng.lat.toFixed(5)}, Lng: ${e.latlng.lng.toFixed(5)}`; });
 map.on('click',e=>{
-  if(!modelLayer) return;
-  const p=turf.point([e.latlng.lng,e.latlng.lat]); let best=null, min=Infinity;
-  modelLayer.eachLayer(l=>{
+  if(!gridFC) return;
+  const p=turf.point([e.latlng.lng,e.latlng.lat]);
+  let best=null, min=Infinity;
+  hexLayerGroup.eachLayer(l=>{
+    if(!l.feature) return;
     const c=turf.centerOfMass(l.feature).geometry.coordinates;
-    const d=turf.distance(p,turf.point(c),{units:'meters'}); if(d<min){min=d; best=l.feature;}
+    const d=turf.distance(p,turf.point(c),{units:'meters'}); if(d<min){ min=d; best=l.feature; }
   });
   if(!best) return;
-  const r=best.properties.raw, pr=best.properties.contr, score=(best.properties.score||0);
 
-  $('kv-ruta').textContent=fmtM(r.dRuta);
-  $('kv-patr').textContent=fmtM(r.dPatr);
-  $('kv-road').textContent=fmtM(r.dRoad);
-  $('kv-agua').textContent=fmtM(r.dSpr);
-  $('kv-dump').textContent=fmtM(r.dDump);
+  const r=best.properties.raw, c=best.properties.contr, s=best.properties.score;
+  $('panelInfo').classList.remove('hidden');
+  $('scoreTag').textContent=s+'/100';
+  $('scoreBar').style.width=Math.max(0,Math.min(100,s))+'%';
+  $('kvNice').textContent=fmtM(r.dNice); $('ctNice').textContent=pct(c.nice);
+  $('kvSvc').textContent =fmtM(r.dSvc);  $('ctSvc').textContent =pct(c.svc);
+  $('kvAcc').textContent =fmtM(r.dAcc);  $('ctAcc').textContent =pct(c.acc);
+  $('kvRisk').textContent =(1-r.h).toFixed(2)+' (1−h)'; $('ctRisk').textContent=pct(c.risk);
 
-  $('ct-ruta').textContent=fmtPct(pr.ruta);
-  $('ct-patr').textContent=fmtPct(pr.patr);
-  $('ct-road').textContent=fmtPct(pr.road);
-  $('ct-agua').textContent=fmtPct(pr.spr);
-  $('ct-dump').textContent=fmtPct(pr.dump);
+  const optimista=$('optSwitch').checked;
+  const thr=+$('thr').value;
+  const accesoOK   = r.dAcc<= (optimista? 1600 : 1200);
+  const servicioOK = r.dSvc<= (optimista? 1800 : 1500);
+  const riesgoOK   = (1-r.h)>= (optimista? 0.30 : 0.40);
+  const apto = (s>=thr) && accesoOK && servicioOK && riesgoOK;
 
-  $('kv-score').textContent=score+'/100';
-  document.querySelector('#bar-score > span').style.width=Math.max(0,Math.min(100,score))+'%';
-  $('site-panel').style.display='block';
-
-  $('c-acc').checked=(r.dRoad<=1000);
-  $('c-agua').checked=(r.dSpr<=1000);
-  $('c-patr').checked=(r.dPatr<=2000);
-  $('c-pres').checked=(r.dDump>=1500);
-  const ctr=turf.centerOfMass(best).geometry.coordinates.join(',');
-  const risk=(currentRiskLookup&&currentRiskLookup.get(ctr)) ?? 0.5;
-  $('c-riesgo').checked=(risk<=0.66);
-  updateBadge();
+  const res=$('res');
+  res.className='px-2.5 py-1 rounded-full border text-xs '+(apto?'border-emerald-200/60 bg-emerald-900/20 text-emerald-50':'border-yellow-200/60 bg-yellow-900/10 text-yellow-100');
+  res.textContent = apto? 'APTO (simulado)' : 'NO APTO (simulado)';
+  const faltan=[]; if(!accesoOK) faltan.push('Acceso'); if(!servicioOK) faltan.push('Servicios'); if(!riesgoOK) faltan.push('Riesgo');
+  $('resWhy').textContent = faltan.length? 'Revisar: '+faltan.join(', ') : 'Cumple checklist.';
 });
 
-/* estado del puntero + herramientas */
-map.on('mousemove',e=>{
-  $('status').textContent=`Lat: ${e.latlng.lat.toFixed(5)}, Lng: ${e.latlng.lng.toFixed(5)} · Alt: —`;
-});
-$('btnCenter').addEventListener('click',()=>map.setView(centerArea,11));
-
-/* medidor simple en metros */
-let measureMode=false, measureStart=null, measureLayer=null;
-$('btnMeasure').addEventListener('click',()=>{
-  measureMode=!measureMode;
-  $('btnMeasure').classList.toggle('active',measureMode);
-  $('btnMeasure').innerHTML = measureMode? `<i class="fa-solid fa-ruler"></i> Midiendo…` : `<i class="fa-solid fa-ruler"></i> Medir`;
-  if(measureLayer){map.removeLayer(measureLayer);measureLayer=null;}
-  measureStart=null;
-});
-map.on('click',e=>{
-  if(!measureMode) return;
-  if(!measureStart){ measureStart=e.latlng; if(measureLayer){map.removeLayer(measureLayer);} measureLayer=L.layerGroup().addTo(map); L.marker(measureStart).addTo(measureLayer); }
-  else{
-    const end=e.latlng;
-    const d=turf.distance(turf.point([measureStart.lng,measureStart.lat]),turf.point([end.lng,end.lat]),{units:'meters'});
-    L.polyline([measureStart,end],{color:'#2563eb',weight:3}).addTo(measureLayer)
-      .bindPopup(`<b>${fmtM(d)}</b>`).openPopup();
-    measureStart=null;
-  }
-});
-
-/* factibilidad badge */
-['c-acc','c-agua','c-patr','c-pres','c-ten','c-riesgo','chkHex'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='chkHex') buildSuit(); else updateBadge(); }));
-function updateBadge(){
-  const ids=['c-acc','c-agua','c-patr','c-pres','c-ten','c-riesgo'];
-  const ok=ids.map(id=>$(id).checked); const pct=Math.round(ok.filter(Boolean).length/ids.length*100);
-  const el=$('res'); let cls='pill'; if(pct>=83) cls+=' ok'; else if(pct>=66) cls+=' warn'; else cls+=' bad'; el.className=cls;
-  el.textContent=(pct>=83?'Alta':pct>=66?'Media':'Baja')+` (${pct}%)`;
-  const lbl=['Acceso','Agua','Patrimonio','Lejos de tiraderos','Tenencia','Riesgo'];
-  const miss=ok.map((v,i)=>v?null:lbl[i]).filter(Boolean);
-  $('res-why').innerHTML=miss.length?`Revisa: ${miss.join(', ')}`:`Cumple checklist.`;
+/* ===== UI ===== */
+function refreshPriorSummary(){
+  const txt=['Nada','Poco','Normal','Mucho'];
+  $('priorSum').textContent=`Tus prioridades: Bonitos: ${txt[levels.nice]} · Servicios: ${txt[levels.svc]} · Accesos: ${txt[levels.acc]} · Riesgo: ${txt[levels.risk]}`;
 }
-
-/* selección de capa/demo */
-function updateLegendAndDesc(val){
-  const t=$('legTitle'), c=$('legContent'), d=$('desc');
-  if(val==='euclid'){
-    t.textContent='Leyenda (Euclidiano)';
-    c.innerHTML=`<div><span class="sw" style="background:#16a34a"></span> Alta (≥75)</div>
-                 <div><span class="sw" style="background:#ca8a04"></span> Media (50–74)</div>
-                 <div><span class="sw" style="background:#dc2626"></span> Baja (&lt;50)</div>
-                 <hr class="sep"><div class="pill"><i class="fa-solid fa-check"></i> “Apto” = nota ≥ umbral + checklist + riesgo</div>`;
-    d.innerHTML=`<b>Modelo activo: Euclidiano (distancias en metros)</b>. Ajusta los <b>pesos</b> y el <b>umbral</b>; haz clic para ver la explicación y la <b>factibilidad</b>. Usa el botón <b>Medir</b> para trazar distancias manuales (m).`;
-  }else{
-    t.textContent='Leyenda (capa demo)';
-    c.innerHTML=`<div><span class="sw" style="background:#a78bfa"></span> Mayor intensidad</div>
-                 <div><span class="sw" style="background:#fecaca"></span> Menor intensidad</div>
-                 <hr class="sep"><div class="pill">Capa ilustrativa · no recalcula puntaje</div>`;
-    const label=$('algo').selectedOptions[0].textContent;
-    d.innerHTML=`<b>${label}</b>. Capa visual para comunicar el enfoque. En esta demo no afecta el resultado; cambia a <b>Euclidiano</b> para calcular idoneidad.`;
-  }
-}
-$('algo').addEventListener('change',()=>{
-  const v=$('algo').value; updateLegendAndDesc(v);
-  if(v==='euclid'){ buildSuit(); } else { explain(v); openExplain(); }
-});
-['cellKm','wRuta','wPatr','wRoad','wSpr','wDump','thr','chkIso','chkRisk','chkHot'].forEach(id=>{
-  $(id).addEventListener('input',e=>{
-    if(id==='cellKm') $('cellKmVal').textContent=$('cellKm').value;
-    if(id==='thr') $('thrVal').textContent=$('thr').value;
-    if(['wRuta','wPatr','wRoad','wSpr','wDump'].includes(id)) $(id+'Val').textContent=(+$(id).value).toFixed(2);
-    debBuild();
+document.querySelectorAll('[data-lvl]').forEach(group=>{
+  group.addEventListener('click',ev=>{
+    const btn=ev.target.closest('.lvl'); if(!btn) return;
+    group.querySelectorAll('.lvl').forEach(b=>b.removeAttribute('data-active'));
+    btn.setAttribute('data-active','1');
+    const key=group.getAttribute('data-lvl'); levels[key]=+btn.dataset.v;
+    refreshPriorSummary(); runModel();
   });
 });
-$('btnRecalc').addEventListener('click',buildSuit);
 
-/* inicial */
-const debBuild=debounce(buildSuit,180);
-function init(){ updateLegendAndDesc('euclid'); buildSuit(); }
-window.addEventListener('load',init);
+function toggleChip(el){
+  const g=el.dataset.group, k=el.dataset.key;
+  if(el.getAttribute('data-on')==='1'){ el.setAttribute('data-on','0'); chosen[g].delete(k); }
+  else{ el.setAttribute('data-on','1'); chosen[g].add(k); }
+}
+document.querySelectorAll('.chip').forEach(ch=>{
+  ch.addEventListener('click',()=>{ toggleChip(ch); runModel(); });
+  ch.setAttribute('data-on','1'); // activas por defecto
+});
+
+function syncSliders(){
+  $('cellKmVal').textContent=$('cellKm').value;
+  $('thrVal').textContent=$('thr').value;
+}
+['cellKm','thr','optSwitch'].forEach(id=>$(id).addEventListener('input',()=>{syncSliders(); reseed($('optSwitch').checked); runModel();}));
+$('btnRun').addEventListener('click',runModel);
+$('btnRandom').addEventListener('click',()=>{reseed($('optSwitch').checked); runModel();});
+
+const openModal=()=>{$('modal').classList.remove('hidden');$('modal').classList.add('flex');$('modalBackdrop').classList.remove('hidden'); if(window.MathJax) MathJax.typesetPromise();};
+const closeModal=()=>{$('modal').classList.add('hidden');$('modal').classList.remove('flex');$('modalBackdrop').classList.add('hidden');};
+$('btnModal').addEventListener('click',openModal);
+$('modalClose').addEventListener('click',closeModal);
+$('modalBackdrop').addEventListener('click',closeModal);
+
+/* ===== init ===== */
+reseed(true); syncSliders(); refreshPriorSummary(); runModel();
 </script>
 </body>
 </html>
