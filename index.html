@@ -158,58 +158,89 @@
     <!-- Geocoder (único buscador, centrado) -->
     <div class="geocoder-wrap" id="gc-wrap"></div>
 
-    <!-- Panel de capas -->
-    <aside class="panel" id="panel">
-      <h4><i class="fa-solid fa-layer-group"></i> Capas principales</h4>
+<!-- Panel de capas (versión completa con comunidades) -->
+<aside class="panel" id="panel">
+  <h4><i class="fa-solid fa-layer-group"></i> Capas principales</h4>
 
-      <div class="block">
-        <b>Base</b>
-        <label class="item"><input type="radio" name="base" id="base-osm" checked> OSM Estándar</label>
-        <label class="item"><input type="radio" name="base" id="base-sat"> Esri Satélite</label>
-        <label class="item"><input type="radio" name="base" id="base-topo"> Esri Topo</label>
-        <div class="item" id="sat-op-row" style="display:none">
-          <span>Opacidad satélite</span>
-          <input id="sat-opacity" type="range" min="0.2" max="1" step="0.05" value="1">
-        </div>
-      </div>
+  <!-- Base -->
+  <div class="block">
+    <b>Base</b>
+    <label class="item"><input type="radio" name="base" id="base-osm" checked> OSM Estándar</label>
+    <label class="item"><input type="radio" name="base" id="base-sat"> Esri Satélite</label>
+    <label class="item"><input type="radio" name="base" id="base-topo"> Esri Topo</label>
+    <div class="item" id="sat-op-row" style="display:none">
+      <span>Opacidad satélite</span>
+      <input id="sat-opacity" type="range" min="0.2" max="1" step="0.05" value="1">
+    </div>
+  </div>
 
-      <div class="sep"></div>
+  <div class="sep"></div>
 
-      <div class="block">
-        <b>Geometrías del corredor</b>
-        <label class="item"><input type="checkbox" id="lyr-pts" checked> Municipios (puntos)</label>
-        <label class="item"><input type="checkbox" id="lyr-concave" checked> Área del corredor (cóncavo)</label>
-        <label class="item"><input type="checkbox" id="lyr-convex"> Envolvente (convexo)</label>
-        <div class="item">
-          <span>Opacidad área</span>
-          <input id="poly-opacity" type="range" min="0" max="0.6" step="0.02" value="0.12">
-        </div>
-      </div>
+  <!-- Comunidades -->
+  <div class="block">
+    <b>Comunidades del corredor</b>
+    <ul style="list-style:none; padding-left:10px; margin-top:6px; line-height:1.6;">
+      <li>🌿 San Pablo Huitzo</li>
+      <li>🌿 San Francisco Telixtlahuaca</li>
+      <li>🌿 Santiago Suchilquitongo</li>
+      <li>🌿 San Pablo Villa de Mitla</li>
+      <li>🌿 La Unión Zapata</li>
+      <li>🌿 Villa Díaz Ordaz</li>
+      <li>🌿 San Juan Bautista Guelache</li>
+      <li>🌿 San Miguel Etla</li>
+      <li>🌿 Tlalixtac de Cabrera</li>
+      <li>🌿 San Antonio de la Cal</li>
+      <li>🌿 San Agustín de las Juntas</li>
+      <li>🌿 San Marcos Tlapazola</li>
+      <li>🌿 San Bartolomé Quialana</li>
+      <li>🌿 San Gabriel Etla</li>
+    </ul>
+  </div>
 
-      <div class="block">
-        <b>POIs Huitzo</b>
-        <label class="item"><input type="checkbox" id="pois-all" checked> POIs (todas las categorías)</label>
-        <div id="pois-cats" style="margin-left:8px"></div>
-      </div>
+  <div class="sep"></div>
 
-      <div class="block">
-        <b>Agua y accesos</b>
-        <label class="item"><input type="checkbox" id="springs" checked> Manantiales (demo)</label>
-        <label class="item"><input type="checkbox" id="roads" checked> Caminos (demo)</label>
-      </div>
+  <!-- Geometrías -->
+  <div class="block">
+    <b>Geometrías del corredor</b>
+    <label class="item"><input type="checkbox" id="lyr-pts" checked> Municipios (puntos)</label>
+    <label class="item"><input type="checkbox" id="lyr-concave" checked> Área del corredor (cóncavo)</label>
+    <label class="item"><input type="checkbox" id="lyr-convex"> Envolvente (convexo)</label>
+    <div class="item">
+      <span>Opacidad área</span>
+      <input id="poly-opacity" type="range" min="0" max="0.6" step="0.02" value="0.12">
+    </div>
+  </div>
 
-      <div class="block">
-        <b>Presiones</b>
-        <label class="item"><input type="checkbox" id="dumps" checked> Tiraderos (demo)</label>
-        <label class="item"><input type="checkbox" id="fires"> Incendios (demo)</label>
-      </div>
+  <!-- POIs -->
+  <div class="block">
+    <b>San Pablo Huitzo</b>
+    <label class="item"><input type="checkbox" id="pois-all" checked> POIs (todas las categorías)</label>
+    <div id="pois-cats" style="margin-left:8px"></div>
+  </div>
 
-      <div class="sep"></div>
-      <div class="block">
-        <button class="btn" id="btn-focus"><i class="fa-regular fa-square"></i> Enfocar corredor</button>
-        <button class="btn" id="btn-export-gj"><i class="fa-solid fa-file-export"></i> Exportar GeoJSON</button>
-      </div>
-    </aside>
+  <!-- Agua y accesos -->
+  <div class="block">
+    <b>Agua y accesos</b>
+    <label class="item"><input type="checkbox" id="springs" checked> Manantiales (demo)</label>
+    <label class="item"><input type="checkbox" id="roads" checked> Caminos (demo)</label>
+  </div>
+
+  <!-- Presiones -->
+  <div class="block">
+    <b>Presiones</b>
+    <label class="item"><input type="checkbox" id="dumps" checked> Tiraderos (demo)</label>
+    <label class="item"><input type="checkbox" id="fires"> Incendios (demo)</label>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- Botones -->
+  <div class="block">
+    <button class="btn" id="btn-focus"><i class="fa-regular fa-square"></i> Enfocar corredor</button>
+    <button class="btn" id="btn-export-gj"><i class="fa-solid fa-file-export"></i> Exportar GeoJSON</button>
+  </div>
+</aside>
+
 
     <div class="legend" id="legend"></div>
 <!-- MODAL / CARD — Cartografía de Saberes Comunitarios (versión panorámica y sintética) -->
